@@ -42,6 +42,18 @@ The default body has:
 
 Use `## Checklist` for plain Markdown checkbox subtasks. Use `## Notes` for current context, `## Links` for Jira, PRs, `[[Wiki/...]]`, and `[[Glossary/...]]` links, and `## Log` for dated progress notes.
 
+## TaskNotes Compatibility
+
+TaskNotes is the human UI layer for browsing tasks and changing `status`; Codex owns canonical task creation, content updates, archiving, compaction, and index regeneration through this helper. Do not rely on TaskNotes direct task creation for canonical work tasks unless it has been configured with an exact minimal template that writes the same metadata shape.
+
+Expected TaskNotes/Obsidian setup:
+
+- Task folder: `Work Tasks`
+- Task tag/identification tag: `work-task`
+- Status values: `todo`, `doing`, `blocked`, `done`
+- Visible task/card properties should stay minimal, with status as the primary editable field.
+- TaskNotes-generated Bases views should filter with `file.hasTag("work-task")` and avoid sorting or displaying removed fields such as `priority`, `planned_for`, and `due`.
+
 ## Configuration
 
 Configuration resolves in this order:
@@ -92,7 +104,6 @@ python /path/to/obsidian-work-tasks/scripts/obsidian_work_tasks.py create \
   --title "BACKEND-1111 Smoke test important bug" \
   --slug "BACKEND-1111" \
   --status doing \
-  --priority high \
   --content-file /private/tmp/worktask.md
 ```
 

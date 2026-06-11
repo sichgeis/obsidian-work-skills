@@ -60,11 +60,8 @@ class Task:
     title: str
     slug: str
     status: str
-    priority: str
     project: str
     jira_id: str
-    planned_for: str
-    due: str
     tags: list[str]
     created: str | None
     updated: str | None
@@ -213,11 +210,8 @@ def load_task(path: Path, vault_root: Path) -> Task:
         title=title,
         slug=slug,
         status=status,
-        priority=str(frontmatter.get("priority") or ""),
         project=str(frontmatter.get("project") or ""),
         jira_id=str(frontmatter.get("jira_id") or extract_jira_id(f"{slug} {title}")),
-        planned_for=str(frontmatter.get("planned_for") or ""),
-        due=str(frontmatter.get("due") or ""),
         tags=normalize_list(frontmatter.get("tags")),
         created=frontmatter.get("created"),
         updated=frontmatter.get("updated"),
@@ -253,13 +247,9 @@ def task_payload(task: Task) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "path": task.relative_path,
         "title": task.title,
-        "slug": task.slug,
         "status": task.status,
-        "priority": task.priority,
         "project": task.project,
         "jira_id": task.jira_id,
-        "planned_for": task.planned_for,
-        "due": task.due,
         "tags": task.tags,
         "updated": task.updated,
     }
@@ -290,7 +280,6 @@ def scan_tasks(config: Config, query: str | None, status: str | None, limit: int
                 task.title,
                 task.slug,
                 task.status,
-                task.priority,
                 task.project,
                 task.jira_id,
                 task.relative_path,
@@ -302,7 +291,7 @@ def scan_tasks(config: Config, query: str | None, status: str | None, limit: int
             continue
         matches.append(task)
 
-    matches.sort(key=lambda task: (STATUS_ORDER.index(task.status), task.due or "9999-99-99", task.title.casefold()))
+    matches.sort(key=task_sort_key)
     payloads = [task_payload(task) for task in matches]
     return payloads[:limit] if limit is not None else payloads
 
@@ -366,10 +355,7 @@ def create_task(
     title: str,
     slug: str | None,
     status: str | None,
-    priority: str | None,
     jira_id: str | None,
-    planned_for: str | None,
-    due: str | None,
     body: str | None,
     extra_tags: list[str] | None,
 ) -> dict[str, Any]:
@@ -426,9 +412,6 @@ def update_task(
     new_content: str | None,
     section: str | None,
     status: str | None,
-    priority: str | None,
-    planned_for: str | None,
-    due: str | None,
     extra_tags: list[str] | None,
 ) -> dict[str, Any]:
     path = resolve_doc_path(config, path_arg)
@@ -460,12 +443,6 @@ def update_task(
         frontmatter["status"] = normalize_status(status)
     else:
         frontmatter["status"] = normalize_status(str(frontmatter.get("status") or "todo"))
-    if priority is not None:
-        frontmatter["priority"] = priority.strip()
-    if planned_for is not None:
-        frontmatter["planned_for"] = planned_for.strip()
-    if due is not None:
-        frontmatter["due"] = due.strip()
     if not frontmatter.get("project"):
         frontmatter["project"] = project_name
     if not frontmatter.get("jira_id"):
@@ -479,7 +456,7 @@ def update_task(
     regenerate_index(config)
     return {
         "path": str(path.relative_to(config.vault_path)),
-        "title": frontmatter.get("title"),
+        "title": extract_title_from_body(updated_body) or path.stem.replace("-", " ").title(),
         "status": frontmatter.get("status"),
         "updated": frontmatter.get("updated"),
         "mode": mode,
@@ -654,10 +631,7 @@ def build_parser() -> argparse.ArgumentParser:
     create_parser.add_argument("--title", required=True, help="Task title.")
     create_parser.add_argument("--slug", help="Readable slug or Jira ID. Filename is normalized from this value.")
     create_parser.add_argument("--status", choices=VALID_STATUSES, help="Initial task status.")
-    create_parser.add_argument("--priority", help="Task priority.")
     create_parser.add_argument("--jira-id", help="Jira issue ID.")
-    create_parser.add_argument("--planned-for", help="Planned work date.")
-    create_parser.add_argument("--due", help="Due date.")
     create_parser.add_argument("--content", help="Inline markdown body.")
     create_parser.add_argument("--content-file", help="Path to a markdown file containing the body content.")
     create_parser.add_argument("--tag", action="append", dest="tags", help="Additional tag to add.")
@@ -667,9 +641,6 @@ def build_parser() -> argparse.ArgumentParser:
     update_parser.add_argument("--mode", default="append", choices=["append", "replace", "rewrite"], help="Content update mode.")
     update_parser.add_argument("--section", help="Section heading to replace when using replace mode.")
     update_parser.add_argument("--status", choices=VALID_STATUSES, help="Updated task status.")
-    update_parser.add_argument("--priority", help="Updated priority.")
-    update_parser.add_argument("--planned-for", help="Updated planned work date.")
-    update_parser.add_argument("--due", help="Updated due date.")
     update_parser.add_argument("--content", help="Inline markdown content.")
     update_parser.add_argument("--content-file", help="Path to a markdown file containing the new content.")
     update_parser.add_argument("--tag", action="append", dest="tags", help="Additional tag to add.")
@@ -715,10 +686,7 @@ def main() -> int:
                 args.title,
                 args.slug,
                 args.status,
-                args.priority,
                 args.jira_id,
-                args.planned_for,
-                args.due,
                 content,
                 args.tags,
             )
@@ -735,9 +703,6 @@ def main() -> int:
                 content,
                 args.section,
                 args.status,
-                args.priority,
-                args.planned_for,
-                args.due,
                 args.tags,
             )
             print(json.dumps(payload, indent=2))

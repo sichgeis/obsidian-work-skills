@@ -62,12 +62,6 @@ class WorkTasksCliTest(unittest.TestCase):
             "BACKEND-1111",
             "--status",
             "doing",
-            "--priority",
-            "high",
-            "--planned-for",
-            "2026-06-11",
-            "--due",
-            "2026-06-12",
             "--tag",
             "smoke-test",
             "--content",
@@ -98,6 +92,32 @@ class WorkTasksCliTest(unittest.TestCase):
         self.assertIn("[[backend-1111\\|BACKEND-1111 Smoke Test Important Bug]]", index)
         self.assertIn("BACKEND-1111", index)
         self.assertIn("| Task | Status | Project | Jira | Updated |", index)
+
+    def test_removed_metadata_flags_are_rejected(self) -> None:
+        create_result = self.run_cli(
+            "create",
+            "--title",
+            "Legacy priority",
+            "--priority",
+            "high",
+            check=False,
+        )
+
+        self.assertNotEqual(create_result.returncode, 0)
+        self.assertIn("unrecognized arguments: --priority high", create_result.stderr)
+
+        self.create_task()
+        update_result = self.run_cli(
+            "update",
+            "--path",
+            "Work Tasks/backend-1111.md",
+            "--due",
+            "2026-06-12",
+            check=False,
+        )
+
+        self.assertNotEqual(update_result.returncode, 0)
+        self.assertIn("unrecognized arguments: --due 2026-06-12", update_result.stderr)
 
     def test_duplicate_create_fails(self) -> None:
         self.create_task()
@@ -132,6 +152,10 @@ class WorkTasksCliTest(unittest.TestCase):
         self.assertEqual([task["title"] for task in tag_payload["tasks"]], ["BACKEND-1111 Smoke Test Important Bug"])
         self.assertEqual([task["title"] for task in body_payload["tasks"]], ["Review queue cleanup"])
         self.assertEqual(setup_payload["tasks"], [])
+        self.assertNotIn("slug", jira_payload["tasks"][0])
+        self.assertNotIn("priority", jira_payload["tasks"][0])
+        self.assertNotIn("planned_for", jira_payload["tasks"][0])
+        self.assertNotIn("due", jira_payload["tasks"][0])
 
     def test_update_append_replace_rewrite_and_status_change_preserve_metadata(self) -> None:
         self.create_task()
