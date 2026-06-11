@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
 VALID_STATUSES = ["todo", "doing", "blocked", "done"]
 STATUS_ORDER = ["doing", "blocked", "todo", "done"]
 ARCHIVE_DIRNAME = "_archive"
+OMITTED_FRONTMATTER_KEYS = {"title", "slug", "priority", "planned_for", "due"}
 
 
 class WorkTaskError(Exception):
@@ -203,7 +204,7 @@ def load_task(path: Path, vault_root: Path) -> Task:
     text = safe_path.read_text()
     frontmatter, body = parse_frontmatter(text)
     relative_path = str(safe_path.relative_to(vault_root))
-    title = str(frontmatter.get("title") or safe_path.stem.replace("-", " ").title())
+    title = str(frontmatter.get("title") or extract_title_from_body(body) or safe_path.stem.replace("-", " ").title())
     slug = str(frontmatter.get("slug") or safe_path.stem)
     status = normalize_status(str(frontmatter.get("status") or "todo"))
     return Task(
@@ -241,7 +242,11 @@ def iter_task_paths(config: Config, include_archived: bool = False) -> list[Path
 
 
 def list_tasks(config: Config, include_archived: bool = False) -> list[Task]:
-    return [load_task(path, config.vault_path) for path in iter_task_paths(config, include_archived)]
+    tasks = [load_task(path, config.vault_path) for path in iter_task_paths(config, include_archived)]
+    default_tags = set(config.default_tags)
+    if not default_tags:
+        return tasks
+    return [task for task in tasks if default_tags.intersection(set(task.tags))]
 
 
 def task_payload(task: Task) -> dict[str, Any]:
@@ -263,6 +268,10 @@ def task_payload(task: Task) -> dict[str, Any]:
         payload["archived_at"] = task.frontmatter.get("archived_at")
         payload["archived_reason"] = task.frontmatter.get("archived_reason")
     return payload
+
+
+def compact_frontmatter(frontmatter: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in frontmatter.items() if key not in OMITTED_FRONTMATTER_KEYS}
 
 
 def tokenize(value: str) -> list[str]:
@@ -311,8 +320,20 @@ def remove_duplicate_title_heading(body: str, title: str) -> str:
     return "\n".join(remaining).strip()
 
 
-def render_task(frontmatter: dict[str, Any], body: str) -> str:
-    title = str(frontmatter["title"])
+def extract_title_from_body(body: str) -> str:
+    for line in body.splitlines():
+        match = re.match(r"^#\s+(.+?)\s*$", line)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
+def render_task(frontmatter: dict[str, Any], body: str, title: str | None = None) -> str:
+    heading = title or extract_title_from_body(body)
+    if not heading:
+        raise WorkTaskError("Task title is required in the body heading or create command.")
+    frontmatter = compact_frontmatter(frontmatter)
+    title = heading
     cleaned_body = remove_duplicate_title_heading(body, title)
     return f"{format_frontmatter(frontmatter)}\n\n# {title}\n\n{cleaned_body.strip()}\n"
 
@@ -361,19 +382,14 @@ def create_task(
     timestamp = now_iso()
     rendered_body = render_default_body(redact_secrets(body or "", config))
     frontmatter = {
-        "title": title.strip(),
-        "slug": display_slug,
         "status": normalize_status(status),
-        "priority": (priority or "").strip(),
         "project": project_name,
         "jira_id": (jira_id or extract_jira_id(f"{display_slug} {title}")).strip(),
         "created": timestamp,
         "updated": timestamp,
-        "planned_for": (planned_for or "").strip(),
-        "due": (due or "").strip(),
         "tags": normalize_tags(config, project_name, extra_tags),
     }
-    atomic_write(path, render_task(frontmatter, rendered_body))
+    atomic_write(path, render_task(frontmatter, rendered_body, title.strip()))
     regenerate_index(config)
     return {
         "path": str(path.relative_to(config.vault_path)),
@@ -452,16 +468,14 @@ def update_task(
         frontmatter["due"] = due.strip()
     if not frontmatter.get("project"):
         frontmatter["project"] = project_name
-    if not frontmatter.get("slug"):
-        frontmatter["slug"] = path.stem
     if not frontmatter.get("jira_id"):
-        frontmatter["jira_id"] = extract_jira_id(f"{frontmatter.get('slug', '')} {frontmatter.get('title', '')}")
-    if not frontmatter.get("title"):
-        frontmatter["title"] = path.stem.replace("-", " ").title()
+        frontmatter["jira_id"] = extract_jira_id(f"{frontmatter.get('slug', '')} {frontmatter.get('title', '')} {path.stem}")
     frontmatter["tags"] = merge_tags(normalize_list(frontmatter.get("tags")), normalize_tags(config, project_name, extra_tags))
     frontmatter["updated"] = now_iso()
+    for key in OMITTED_FRONTMATTER_KEYS:
+        frontmatter.pop(key, None)
 
-    atomic_write(path, render_task(frontmatter, updated_body))
+    atomic_write(path, render_task(frontmatter, updated_body, extract_title_from_body(body) or path.stem.replace("-", " ").title()))
     regenerate_index(config)
     return {
         "path": str(path.relative_to(config.vault_path)),
@@ -507,9 +521,11 @@ def archive_task(config: Config, path_arg: str, reason: str | None) -> dict[str,
     frontmatter["archived_reason"] = (reason or "").strip()
     frontmatter["original_path"] = str(path.relative_to(config.vault_path))
     frontmatter["updated"] = timestamp
+    for key in OMITTED_FRONTMATTER_KEYS:
+        frontmatter.pop(key, None)
 
     destination = archive_destination(config, path)
-    atomic_write(destination, render_task(frontmatter, body))
+    atomic_write(destination, render_task(frontmatter, body, extract_title_from_body(body) or path.stem.replace("-", " ").title()))
     path.unlink()
     regenerate_index(config)
     return {
@@ -517,6 +533,24 @@ def archive_task(config: Config, path_arg: str, reason: str | None) -> dict[str,
         "original_path": frontmatter["original_path"],
         "archived_at": timestamp,
         "reason": frontmatter["archived_reason"],
+        "index": str(index_path(config).relative_to(config.vault_path)),
+    }
+
+
+def compact_task_metadata(config: Config, include_archived: bool = False) -> dict[str, Any]:
+    compacted: list[str] = []
+    for task in list_tasks(config, include_archived):
+        removed_keys = [key for key in OMITTED_FRONTMATTER_KEYS if key in task.frontmatter]
+        if not removed_keys:
+            continue
+        frontmatter = compact_frontmatter(task.frontmatter)
+        atomic_write(task.path, render_task(frontmatter, task.body, task.title))
+        compacted.append(task.relative_path)
+
+    regenerate_index(config)
+    return {
+        "compacted": compacted,
+        "count": len(compacted),
         "index": str(index_path(config).relative_to(config.vault_path)),
     }
 
@@ -532,7 +566,7 @@ def format_date(value: str | None) -> str:
 
 
 def task_sort_key(task: Task) -> tuple[str, str, str]:
-    return (task.due or "9999-99-99", task.planned_for or "9999-99-99", task.title.casefold())
+    return (task.status, task.project, task.title.casefold())
 
 
 def regenerate_index(config: Config) -> dict[str, Any]:
@@ -545,8 +579,8 @@ def regenerate_index(config: Config) -> dict[str, Any]:
             [
                 f"## {status.title()}",
                 "",
-                "| Task | Status | Priority | Project | Jira | Planned | Due | Updated |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Task | Status | Project | Jira | Updated |",
+                "| --- | --- | --- | --- | --- |",
             ]
         )
         if status_tasks:
@@ -558,18 +592,15 @@ def regenerate_index(config: Config) -> dict[str, Any]:
                         [
                             escape_table_cell(link),
                             escape_table_cell(task.status),
-                            escape_table_cell(task.priority),
                             escape_table_cell(task.project),
                             escape_table_cell(task.jira_id),
-                            escape_table_cell(task.planned_for),
-                            escape_table_cell(task.due),
                             escape_table_cell(format_date(task.updated)),
                         ]
                     )
                     + " |"
                 )
         else:
-            lines.append("|  |  |  |  |  |  |  |  |")
+            lines.append("|  |  |  |  |  |")
         lines.append("")
     lines.extend(["## Archive", "", f"Archived tasks: {archived_count}", ""])
     atomic_write(index_path(config), "\n".join(lines))
@@ -647,6 +678,9 @@ def build_parser() -> argparse.ArgumentParser:
     archive_parser.add_argument("--path", required=True, help="Task path relative to the vault root.")
     archive_parser.add_argument("--reason", help="Reason for archiving.")
 
+    compact_parser = subparsers.add_parser("compact", help="Remove non-essential task metadata from work tasks.")
+    compact_parser.add_argument("--include-archived", action="store_true", help="Also compact archived tasks.")
+
     subparsers.add_parser("index", help="Regenerate the work task index.")
     subparsers.add_parser("doctor", help="Print resolved configuration and filesystem diagnostics.")
     return parser
@@ -711,6 +745,10 @@ def main() -> int:
 
         if args.command == "archive":
             print(json.dumps(archive_task(config, args.path, args.reason), indent=2))
+            return 0
+
+        if args.command == "compact":
+            print(json.dumps(compact_task_metadata(config, args.include_archived), indent=2))
             return 0
 
         if args.command == "index":

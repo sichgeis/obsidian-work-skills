@@ -25,7 +25,9 @@ Use this skill when a user wants persistent personal work-task notes written int
 
 ## Task Content
 
-Tasks use lightweight frontmatter and free-form Markdown. The default body has:
+Tasks use minimal frontmatter and free-form Markdown. Keep the note title as the H1 and the stable slug in the filename, not in frontmatter. The task metadata should stay compact: `status`, `project`, `jira_id`, `created`, `updated`, and `tags`. Do not store `slug`, `title`, `priority`, `planned_for`, or `due` in task frontmatter.
+
+The default body has:
 
 ```markdown
 ## Checklist
@@ -123,7 +125,7 @@ python /path/to/obsidian-work-tasks/scripts/obsidian_work_tasks.py doctor
 
 ## Notes
 
-- `scan` returns JSON with task titles, paths, statuses, priority, project, Jira ID, planning dates, tags, and updated timestamp.
+- `scan` returns JSON with inferred task titles, paths, statuses, project, Jira ID, tags, and updated timestamp. Titles are inferred from the H1 or filename.
 - `read` returns the full Markdown document.
 - `create` fails if the normalized task filename already exists.
 - `update --mode replace` replaces the named heading section or creates it if missing.

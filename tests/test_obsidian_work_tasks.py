@@ -80,21 +80,24 @@ class WorkTasksCliTest(unittest.TestCase):
 
         self.assertEqual(payload["path"], "Work Tasks/backend-1111.md")
         task = (self.vault / "Work Tasks" / "backend-1111.md").read_text()
-        self.assertIn("title: BACKEND-1111 Smoke Test Important Bug", task)
-        self.assertIn("slug: BACKEND-1111", task)
         self.assertIn("status: doing", task)
-        self.assertIn("priority: high", task)
         self.assertIn("project: invoice-service", task)
         self.assertIn("jira_id: BACKEND-1111", task)
         self.assertIn("tags:\n  - work-task\n  - project/invoice-service\n  - smoke-test", task)
         self.assertIn("# BACKEND-1111 Smoke Test Important Bug", task)
         self.assertIn("SECRET: [REDACTED]", task)
+        self.assertNotIn("title:", task)
+        self.assertNotIn("slug:", task)
+        self.assertNotIn("priority:", task)
+        self.assertNotIn("planned_for:", task)
+        self.assertNotIn("due:", task)
 
         index = (self.vault / "Work Tasks" / "Index.md").read_text()
         self.assertIn("# Work Tasks Index", index)
         self.assertIn("## Doing", index)
         self.assertIn("[[backend-1111\\|BACKEND-1111 Smoke Test Important Bug]]", index)
         self.assertIn("BACKEND-1111", index)
+        self.assertIn("| Task | Status | Project | Jira | Updated |", index)
 
     def test_duplicate_create_fails(self) -> None:
         self.create_task()
@@ -113,18 +116,22 @@ class WorkTasksCliTest(unittest.TestCase):
     def test_scan_matches_title_status_jira_project_tag_and_body(self) -> None:
         self.create_task()
         self.json_cli("--project", "review-service", "create", "--title", "Review queue cleanup", "--status", "todo", "--content", "Triage vendor notes.")
+        tasks_dir = self.vault / "Work Tasks"
+        (tasks_dir / "TaskNotes Setup.md").write_text("# TaskNotes Setup\n\nReference note.")
 
         jira_payload = self.json_cli("scan", "--query", "BACKEND-1111")
         status_payload = self.json_cli("scan", "--status", "doing")
         project_payload = self.json_cli("scan", "--query", "invoice-service")
         tag_payload = self.json_cli("scan", "--query", "smoke-test")
         body_payload = self.json_cli("scan", "--query", "vendor notes")
+        setup_payload = self.json_cli("scan", "--query", "TaskNotes Setup")
 
         self.assertEqual([task["title"] for task in jira_payload["tasks"]], ["BACKEND-1111 Smoke Test Important Bug"])
         self.assertEqual([task["title"] for task in status_payload["tasks"]], ["BACKEND-1111 Smoke Test Important Bug"])
         self.assertEqual([task["title"] for task in project_payload["tasks"]], ["BACKEND-1111 Smoke Test Important Bug"])
         self.assertEqual([task["title"] for task in tag_payload["tasks"]], ["BACKEND-1111 Smoke Test Important Bug"])
         self.assertEqual([task["title"] for task in body_payload["tasks"]], ["Review queue cleanup"])
+        self.assertEqual(setup_payload["tasks"], [])
 
     def test_update_append_replace_rewrite_and_status_change_preserve_metadata(self) -> None:
         self.create_task()
@@ -165,11 +172,16 @@ class WorkTasksCliTest(unittest.TestCase):
         )
 
         task = (self.vault / "Work Tasks" / "backend-1111.md").read_text()
-        self.assertIn("title: BACKEND-1111 Smoke Test Important Bug", task)
         self.assertIn("status: done", task)
         self.assertIn("project: invoice-service", task)
         self.assertIn("  - project/review-service", task)
         self.assertIn("  - review", task)
+        self.assertIn("# BACKEND-1111 Smoke Test Important Bug", task)
+        self.assertNotIn("title:", task)
+        self.assertNotIn("slug:", task)
+        self.assertNotIn("priority:", task)
+        self.assertNotIn("planned_for:", task)
+        self.assertNotIn("due:", task)
         self.assertIn("## Notes\nRewritten final notes.", task)
         self.assertNotIn("Updated notes after reproduction.", task)
         self.assertNotIn("abcdefabcdefabcdef", task)
@@ -198,6 +210,34 @@ class WorkTasksCliTest(unittest.TestCase):
         archived_scan = self.json_cli("scan", "--query", "BACKEND-1111", "--include-archived")
         self.assertEqual(active_scan["tasks"], [])
         self.assertEqual(len(archived_scan["tasks"]), 1)
+
+    def test_compact_removes_legacy_metadata_fields(self) -> None:
+        self.create_task()
+        path = self.vault / "Work Tasks" / "backend-1111.md"
+        task = path.read_text()
+        path.write_text(
+            task.replace(
+                "---\n",
+                "---\n"
+                "title: BACKEND-1111 Smoke Test Important Bug\n"
+                "slug: BACKEND-1111\n"
+                "priority: high\n"
+                "planned_for: 2026-06-11\n"
+                "due: 2026-06-12\n",
+                1,
+            )
+        )
+
+        payload = self.json_cli("compact")
+
+        self.assertEqual(payload["count"], 1)
+        compacted = path.read_text()
+        self.assertNotIn("title:", compacted)
+        self.assertNotIn("slug:", compacted)
+        self.assertNotIn("priority:", compacted)
+        self.assertNotIn("planned_for:", compacted)
+        self.assertNotIn("due:", compacted)
+        self.assertIn("# BACKEND-1111 Smoke Test Important Bug", compacted)
 
     def test_index_command_regenerates_index(self) -> None:
         self.create_task()
