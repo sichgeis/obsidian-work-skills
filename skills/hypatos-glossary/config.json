@@ -1,0 +1,10 @@
+{
+  "vault_path": "/Users/christian/vault/Hypatos",
+  "glossary_dir": "Glossary",
+  "index_file": "Index.md",
+  "default_tags": ["glossary"],
+  "redaction": {
+    "enabled": true,
+    "patterns": ["API_KEY", "SECRET", "TOKEN", "PASSWORD"]
+  }
+}

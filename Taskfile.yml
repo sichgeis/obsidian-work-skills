@@ -1,0 +1,80 @@
+version: "3"
+
+vars:
+  PYTHON:
+    sh: command -v python || command -v python3
+  HOME_DIR:
+    sh: printf %s "$HOME"
+  BUILD_ROOT: dist
+  CODEX_SKILLS_DIR: "{{.HOME_DIR}}/.codex/skills"
+  CODEX_PROMPTS_DIR: "{{.HOME_DIR}}/.codex/prompts"
+
+tasks:
+  build:
+    desc: Build both Codex skill packages
+    run: once
+    cmds:
+      - rm -rf "{{.BUILD_ROOT}}"
+      - mkdir -p "{{.BUILD_ROOT}}/obsidian-wiki/scripts" "{{.BUILD_ROOT}}/obsidian-wiki/commands" "{{.BUILD_ROOT}}/obsidian-wiki/obsidian_work"
+      - mkdir -p "{{.BUILD_ROOT}}/hypatos-glossary/scripts" "{{.BUILD_ROOT}}/hypatos-glossary/commands" "{{.BUILD_ROOT}}/hypatos-glossary/obsidian_work"
+      - cp skills/obsidian-wiki/SKILL.md skills/obsidian-wiki/config.json requirements.txt "{{.BUILD_ROOT}}/obsidian-wiki/"
+      - cp scripts/obsidian_wiki.py scripts/obsidian_wiki_mcp.py "{{.BUILD_ROOT}}/obsidian-wiki/scripts/"
+      - cp commands/document.md "{{.BUILD_ROOT}}/obsidian-wiki/commands/"
+      - cp obsidian_work/*.py "{{.BUILD_ROOT}}/obsidian-wiki/obsidian_work/"
+      - cp skills/hypatos-glossary/SKILL.md skills/hypatos-glossary/config.json requirements.txt "{{.BUILD_ROOT}}/hypatos-glossary/"
+      - cp scripts/obsidian_glossary.py "{{.BUILD_ROOT}}/hypatos-glossary/scripts/"
+      - cp commands/glossary.md "{{.BUILD_ROOT}}/hypatos-glossary/commands/"
+      - cp obsidian_work/*.py "{{.BUILD_ROOT}}/hypatos-glossary/obsidian_work/"
+
+  install:
+    desc: Install both skills for Codex
+    cmds:
+      - task: install:codex
+
+  install:codex:
+    desc: Install both skill packages and prompt wrappers for Codex
+    deps: [build]
+    cmds:
+      - mkdir -p "{{.CODEX_SKILLS_DIR}}" "{{.CODEX_PROMPTS_DIR}}"
+      - rm -rf "{{.CODEX_SKILLS_DIR}}/obsidian-wiki" "{{.CODEX_SKILLS_DIR}}/hypatos-glossary"
+      - cp -R "{{.BUILD_ROOT}}/obsidian-wiki" "{{.CODEX_SKILLS_DIR}}/obsidian-wiki"
+      - cp -R "{{.BUILD_ROOT}}/hypatos-glossary" "{{.CODEX_SKILLS_DIR}}/hypatos-glossary"
+      - cp commands/document.md "{{.CODEX_PROMPTS_DIR}}/document.md"
+      - cp commands/glossary.md "{{.CODEX_PROMPTS_DIR}}/glossary.md"
+
+  verify:
+    desc: Verify packages, helper entrypoints, and unit tests
+    deps: [build]
+    cmds:
+      - test -f "{{.BUILD_ROOT}}/obsidian-wiki/SKILL.md"
+      - test -f "{{.BUILD_ROOT}}/obsidian-wiki/config.json"
+      - test -f "{{.BUILD_ROOT}}/obsidian-wiki/requirements.txt"
+      - test -f "{{.BUILD_ROOT}}/obsidian-wiki/scripts/obsidian_wiki.py"
+      - test -f "{{.BUILD_ROOT}}/obsidian-wiki/scripts/obsidian_wiki_mcp.py"
+      - test -f "{{.BUILD_ROOT}}/obsidian-wiki/obsidian_work/core.py"
+      - test -f "{{.BUILD_ROOT}}/obsidian-wiki/commands/document.md"
+      - test -f "{{.BUILD_ROOT}}/hypatos-glossary/SKILL.md"
+      - test -f "{{.BUILD_ROOT}}/hypatos-glossary/config.json"
+      - test -f "{{.BUILD_ROOT}}/hypatos-glossary/scripts/obsidian_glossary.py"
+      - test -f "{{.BUILD_ROOT}}/hypatos-glossary/obsidian_work/core.py"
+      - test -f "{{.BUILD_ROOT}}/hypatos-glossary/commands/glossary.md"
+      - '"{{.PYTHON}}" "{{.BUILD_ROOT}}/obsidian-wiki/scripts/obsidian_wiki.py" --help'
+      - '"{{.PYTHON}}" "{{.BUILD_ROOT}}/hypatos-glossary/scripts/obsidian_glossary.py" --help'
+      - '"{{.PYTHON}}" "{{.BUILD_ROOT}}/obsidian-wiki/scripts/obsidian_wiki_mcp.py" --help'
+      - '"{{.PYTHON}}" -m unittest discover -s tests'
+
+  verify:codex:
+    desc: Verify the installed Codex copies
+    cmds:
+      - test -f "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/SKILL.md"
+      - test -f "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/scripts/obsidian_wiki.py"
+      - test -f "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/scripts/obsidian_wiki_mcp.py"
+      - test -f "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/obsidian_work/core.py"
+      - test -f "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/SKILL.md"
+      - test -f "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/scripts/obsidian_glossary.py"
+      - test -f "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/obsidian_work/core.py"
+      - test -f "{{.CODEX_PROMPTS_DIR}}/document.md"
+      - test -f "{{.CODEX_PROMPTS_DIR}}/glossary.md"
+      - '"{{.PYTHON}}" "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/scripts/obsidian_wiki.py" --help'
+      - '"{{.PYTHON}}" "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/scripts/obsidian_glossary.py" --help'
+      - '"{{.PYTHON}}" "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/scripts/obsidian_wiki_mcp.py" --help'

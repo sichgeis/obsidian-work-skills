@@ -1,0 +1,23 @@
+{
+  "vault_path": "/path/to/your/obsidian/vault",
+  "wiki_dir": "Wiki",
+  "glossary_dir": "Glossary",
+  "index_file": "Index.md",
+  "default_tags": {
+    "wiki": [
+      "wiki"
+    ],
+    "glossary": [
+      "glossary"
+    ]
+  },
+  "redaction": {
+    "enabled": true,
+    "patterns": [
+      "API_KEY",
+      "SECRET",
+      "TOKEN",
+      "PASSWORD"
+    ]
+  }
+}
