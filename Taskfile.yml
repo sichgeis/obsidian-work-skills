@@ -11,12 +11,13 @@ vars:
 
 tasks:
   build:
-    desc: Build both Codex skill packages
+    desc: Build Codex skill packages
     run: once
     cmds:
       - rm -rf "{{.BUILD_ROOT}}"
       - mkdir -p "{{.BUILD_ROOT}}/obsidian-wiki/scripts" "{{.BUILD_ROOT}}/obsidian-wiki/commands" "{{.BUILD_ROOT}}/obsidian-wiki/obsidian_work"
       - mkdir -p "{{.BUILD_ROOT}}/hypatos-glossary/scripts" "{{.BUILD_ROOT}}/hypatos-glossary/commands" "{{.BUILD_ROOT}}/hypatos-glossary/obsidian_work"
+      - mkdir -p "{{.BUILD_ROOT}}/obsidian-work-tasks/scripts" "{{.BUILD_ROOT}}/obsidian-work-tasks/commands" "{{.BUILD_ROOT}}/obsidian-work-tasks/obsidian_work"
       - cp skills/obsidian-wiki/SKILL.md skills/obsidian-wiki/config.json requirements.txt "{{.BUILD_ROOT}}/obsidian-wiki/"
       - cp scripts/obsidian_wiki.py scripts/obsidian_wiki_mcp.py "{{.BUILD_ROOT}}/obsidian-wiki/scripts/"
       - cp commands/document.md "{{.BUILD_ROOT}}/obsidian-wiki/commands/"
@@ -25,6 +26,10 @@ tasks:
       - cp scripts/obsidian_glossary.py "{{.BUILD_ROOT}}/hypatos-glossary/scripts/"
       - cp commands/glossary.md "{{.BUILD_ROOT}}/hypatos-glossary/commands/"
       - cp obsidian_work/*.py "{{.BUILD_ROOT}}/hypatos-glossary/obsidian_work/"
+      - cp skills/obsidian-work-tasks/SKILL.md skills/obsidian-work-tasks/config.json requirements.txt "{{.BUILD_ROOT}}/obsidian-work-tasks/"
+      - cp scripts/obsidian_work_tasks.py "{{.BUILD_ROOT}}/obsidian-work-tasks/scripts/"
+      - cp commands/worktask.md "{{.BUILD_ROOT}}/obsidian-work-tasks/commands/"
+      - cp obsidian_work/*.py "{{.BUILD_ROOT}}/obsidian-work-tasks/obsidian_work/"
 
   install:
     desc: Install both skills for Codex
@@ -32,15 +37,17 @@ tasks:
       - task: install:codex
 
   install:codex:
-    desc: Install both skill packages and prompt wrappers for Codex
+    desc: Install skill packages and prompt wrappers for Codex
     deps: [build]
     cmds:
       - mkdir -p "{{.CODEX_SKILLS_DIR}}" "{{.CODEX_PROMPTS_DIR}}"
-      - rm -rf "{{.CODEX_SKILLS_DIR}}/obsidian-wiki" "{{.CODEX_SKILLS_DIR}}/hypatos-glossary"
+      - rm -rf "{{.CODEX_SKILLS_DIR}}/obsidian-wiki" "{{.CODEX_SKILLS_DIR}}/hypatos-glossary" "{{.CODEX_SKILLS_DIR}}/obsidian-work-tasks"
       - cp -R "{{.BUILD_ROOT}}/obsidian-wiki" "{{.CODEX_SKILLS_DIR}}/obsidian-wiki"
       - cp -R "{{.BUILD_ROOT}}/hypatos-glossary" "{{.CODEX_SKILLS_DIR}}/hypatos-glossary"
+      - cp -R "{{.BUILD_ROOT}}/obsidian-work-tasks" "{{.CODEX_SKILLS_DIR}}/obsidian-work-tasks"
       - cp commands/document.md "{{.CODEX_PROMPTS_DIR}}/document.md"
       - cp commands/glossary.md "{{.CODEX_PROMPTS_DIR}}/glossary.md"
+      - cp commands/worktask.md "{{.CODEX_PROMPTS_DIR}}/worktask.md"
 
   verify:
     desc: Verify packages, helper entrypoints, and unit tests
@@ -58,8 +65,14 @@ tasks:
       - test -f "{{.BUILD_ROOT}}/hypatos-glossary/scripts/obsidian_glossary.py"
       - test -f "{{.BUILD_ROOT}}/hypatos-glossary/obsidian_work/core.py"
       - test -f "{{.BUILD_ROOT}}/hypatos-glossary/commands/glossary.md"
+      - test -f "{{.BUILD_ROOT}}/obsidian-work-tasks/SKILL.md"
+      - test -f "{{.BUILD_ROOT}}/obsidian-work-tasks/config.json"
+      - test -f "{{.BUILD_ROOT}}/obsidian-work-tasks/scripts/obsidian_work_tasks.py"
+      - test -f "{{.BUILD_ROOT}}/obsidian-work-tasks/obsidian_work/core.py"
+      - test -f "{{.BUILD_ROOT}}/obsidian-work-tasks/commands/worktask.md"
       - '"{{.PYTHON}}" "{{.BUILD_ROOT}}/obsidian-wiki/scripts/obsidian_wiki.py" --help'
       - '"{{.PYTHON}}" "{{.BUILD_ROOT}}/hypatos-glossary/scripts/obsidian_glossary.py" --help'
+      - '"{{.PYTHON}}" "{{.BUILD_ROOT}}/obsidian-work-tasks/scripts/obsidian_work_tasks.py" --help'
       - '"{{.PYTHON}}" "{{.BUILD_ROOT}}/obsidian-wiki/scripts/obsidian_wiki_mcp.py" --help'
       - '"{{.PYTHON}}" -m unittest discover -s tests'
 
@@ -73,8 +86,13 @@ tasks:
       - test -f "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/SKILL.md"
       - test -f "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/scripts/obsidian_glossary.py"
       - test -f "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/obsidian_work/core.py"
+      - test -f "{{.CODEX_SKILLS_DIR}}/obsidian-work-tasks/SKILL.md"
+      - test -f "{{.CODEX_SKILLS_DIR}}/obsidian-work-tasks/scripts/obsidian_work_tasks.py"
+      - test -f "{{.CODEX_SKILLS_DIR}}/obsidian-work-tasks/obsidian_work/core.py"
       - test -f "{{.CODEX_PROMPTS_DIR}}/document.md"
       - test -f "{{.CODEX_PROMPTS_DIR}}/glossary.md"
+      - test -f "{{.CODEX_PROMPTS_DIR}}/worktask.md"
       - '"{{.PYTHON}}" "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/scripts/obsidian_wiki.py" --help'
       - '"{{.PYTHON}}" "{{.CODEX_SKILLS_DIR}}/hypatos-glossary/scripts/obsidian_glossary.py" --help'
+      - '"{{.PYTHON}}" "{{.CODEX_SKILLS_DIR}}/obsidian-work-tasks/scripts/obsidian_work_tasks.py" --help'
       - '"{{.PYTHON}}" "{{.CODEX_SKILLS_DIR}}/obsidian-wiki/scripts/obsidian_wiki_mcp.py" --help'

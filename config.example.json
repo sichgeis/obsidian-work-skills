@@ -2,6 +2,7 @@
   "vault_path": "/path/to/your/obsidian/vault",
   "wiki_dir": "Wiki",
   "glossary_dir": "Glossary",
+  "tasks_dir": "Work Tasks",
   "index_file": "Index.md",
   "default_tags": {
     "wiki": [
@@ -9,6 +10,9 @@
     ],
     "glossary": [
       "glossary"
+    ],
+    "work_tasks": [
+      "work-task"
     ]
   },
   "redaction": {

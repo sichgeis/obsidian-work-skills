@@ -2,7 +2,7 @@
 
 ## Combined Repository
 
-`obsidian-work-skills` packages two Codex skills from one source repository. The installed skill names remain `obsidian-wiki` and `hypatos-glossary` so existing Codex usage and helper paths remain stable.
+`obsidian-work-skills` packages three Codex skills from one source repository. The installed skill names remain `obsidian-wiki`, `hypatos-glossary`, and `obsidian-work-tasks` so existing Codex usage and helper paths remain stable.
 
 The repository intentionally no longer builds Claude Code or ForgeCode packages. Future non-Codex variants should be derived from the Codex skill sources rather than maintained as first-class build targets here.
 
@@ -32,6 +32,10 @@ Domain helpers keep their own `Config` and document dataclasses, CLI parsers, pa
 
 `scripts/obsidian_glossary.py` remains the stable glossary CLI. It keeps one note per canonical term, aliases, summaries, source project tracking, glossary scan payloads, and `Glossary/Index.md` regeneration.
 
+## Work Task Domain
+
+`scripts/obsidian_work_tasks.py` is the stable work-task CLI. It keeps one note per task in `Work Tasks/`, lightweight task lifecycle metadata, plain Markdown checklist sections, scan/read/create/update/archive operations, and `Work Tasks/Index.md` regeneration.
+
 ## Codex Packaging
 
-`task build` creates `dist/obsidian-wiki` and `dist/hypatos-glossary`. `task install:codex` copies those packages into `~/.codex/skills` and installs `/document` and `/glossary` prompt wrappers into `~/.codex/prompts`.
+`task build` creates `dist/obsidian-wiki`, `dist/hypatos-glossary`, and `dist/obsidian-work-tasks`. `task install:codex` copies those packages into `~/.codex/skills` and installs `/document`, `/glossary`, and `/worktask` prompt wrappers into `~/.codex/prompts`.

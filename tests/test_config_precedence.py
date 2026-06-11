@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WIKI_SCRIPT = ROOT / "scripts" / "obsidian_wiki.py"
 GLOSSARY_SCRIPT = ROOT / "scripts" / "obsidian_glossary.py"
+WORK_TASKS_SCRIPT = ROOT / "scripts" / "obsidian_work_tasks.py"
 
 
 class ConfigPrecedenceTest(unittest.TestCase):
@@ -60,6 +61,17 @@ class ConfigPrecedenceTest(unittest.TestCase):
 
         self.assertEqual(payload["vault_path"], str(codex_vault.resolve()))
         self.assertEqual(payload["glossary_dir"], "CodexGlossary")
+
+    def test_codex_work_tasks_config_overrides_legacy_agents_config(self) -> None:
+        agents_vault = self.root / "agents-vault"
+        codex_vault = self.root / "codex-vault"
+        (self.project / ".agents" / "obsidian-work-tasks.json").write_text(json.dumps({"vault_path": str(agents_vault), "tasks_dir": "AgentsTasks"}))
+        (self.project / ".codex" / "obsidian-work-tasks.json").write_text(json.dumps({"vault_path": str(codex_vault), "tasks_dir": "CodexTasks"}))
+
+        payload = self.run_doctor(WORK_TASKS_SCRIPT)
+
+        self.assertEqual(payload["vault_path"], str(codex_vault.resolve()))
+        self.assertEqual(payload["tasks_dir"], "CodexTasks")
 
 
 if __name__ == "__main__":

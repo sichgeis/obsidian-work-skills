@@ -1,0 +1,10 @@
+{
+  "vault_path": "/Users/christian/vault/Hypatos",
+  "tasks_dir": "Work Tasks",
+  "index_file": "Index.md",
+  "default_tags": ["work-task"],
+  "redaction": {
+    "enabled": true,
+    "patterns": ["API_KEY", "SECRET", "TOKEN", "PASSWORD"]
+  }
+}
